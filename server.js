@@ -91,5 +91,5 @@ const PORT = process.env.PORT ||3000;
 
 // Start the server on port 80
 httpServer.listen(PORT, () => {
-    console.log('HTTP server is running on port 80');
+    console.log('HTTP server is running on port: '+ PORT);
 });
