@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>WebRTC Video Call</title>
+    <style>
+        video {
+            width: 100px; /* Adjust as needed for mobile view */
+            height: auto;
+        }
+    </style>
+</head>
+<body>
+    <h1>WebRTC chat room</h1>
+    <div class="buttons"></div>
+    <input type="text" placeholder="Create room" id="roomInput">
+    <button id="submitButton">Submit</button>
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="/app.js"></script>
+</body>
+</html>

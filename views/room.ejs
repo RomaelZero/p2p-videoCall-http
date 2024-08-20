@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Room</title>
+</head>
+<body>
+    <h1 class="heading"><%= roomName %></h1>
+    <div class="container"></div>
+    <!-- Form to post the msg -->
+    <input class="msgInput" type="text" placeholder="Type your message">
+    <button onclick="emitMsg()">Submit</button>
+
+    <br>
+    <hr>
+    <h1>Video Call</h1>
+    <div class="video-container">
+        <video id="localVideo" muted autoplay playsinline></video>
+        <video id="remoteVideo" autoplay playsinline></video>
+        <button id="startCall">Start Call</button>
+        <button id="endCall">Hang Up</button>
+    </div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+    const socket = io();
+    const heading = document.querySelector(".heading");
+    const containerEl = document.querySelector(".container");
+
+    
+
+    let sdp; // <<=== variable to accept the sdp after the accept event from the socket has been emitted.    
+    let remoteSdp; // <<=== variable of answer sdp after the answer event from the socket has been emitted. 
+
+    const callButton = document.getElementById("startCall");    
+
+    callButton.addEventListener("click",async () => {
+        const offer = await peerConnection.createOffer();
+        await peerConnection.setLocalDescription(offer);
+        sdp = peerConnection.localDescription;
+        socket.emit("offer", peerConnection.localDescription, roomName);
+    });    
+
+    
+    socket.on("offer", async (offer)=>{
+        if (sdp) {
+            console.log("The SDP already exists");
+
+            // Handling incoming answer
+            socket.on("answer", async (answer) => {
+                remoteSdp = new RTCSessionDescription(answer);
+                await peerConnection.setRemoteDescription(remoteSdp);
+            });
+
+            setUpPeerConnection();
+            return;
+        } 
+
+        // Remote SDP
+        remoteSdp = new RTCSessionDescription(offer);
+        await peerConnection.setRemoteDescription(remoteSdp);
+
+        // Create an SDP answer
+        const answer = await peerConnection.createAnswer();
+        await peerConnection.setLocalDescription(answer);
+
+        // Send the answer SDP back to the client making the offer
+        socket.emit("answer", peerConnection.localDescription, roomName);
+
+        // Set up the peer connection listeners
+        setUpPeerConnection();
+    });
+
+    // Function to set up peer connection Event Listeners
+    async function setUpPeerConnection() {
+        try {
+            peerConnection.ontrack = (event) => {
+                const [remoteStream] = event.streams;
+                remoteVideo.srcObject = remoteStream;
+            };
+
+            peerConnection.onicecandidate = (event) => {
+                if (event.candidate) {
+                    socket.emit("ice-candidate", event.candidate, roomName);
+                }
+            };
+
+            // Handling incoming ICE candidates from the remote peer
+            socket.on("ice-candidate", async (candidate) => {
+                try {
+                    await peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
+                } catch (error) {
+                    console.error('Error adding received ICE candidate', error);
+                }
+            });
+
+        } catch (error) {
+            console.error("Error setting up peer connection:", error);
+        }
+    }
+
+    const constraints = {
+        video: true,
+        audio: true
+    };
+
+    const localVideo = document.querySelector("#localVideo");
+    const remoteVideo = document.querySelector("#remoteVideo");
+
+    // Set up PeerConnection (you will need to customize this later)
+    let peerConnection;
+    const configuration = {
+        iceServers: [
+            { urls: 'stun:stun.l.google.com:19302' } // STUN server
+        ]
+    };
+
+    async function startVideo() {
+        try {
+            peerConnection = new RTCPeerConnection(configuration);
+
+            const localStream = await navigator.mediaDevices.getUserMedia(constraints);
+            localVideo.srcObject = localStream;
+
+            localStream.getTracks().forEach(track => {
+                peerConnection.addTrack(track, localStream);
+            });
+
+            // Move the ontrack handler to setUpPeerConnection
+            setUpPeerConnection();
+
+        } catch (error) {
+            console.error("There is no media device connected to the page. " + error);
+        }
+    }
+
+    // Start video on page load
+    startVideo();
+
+    // Stop video stream
+    // Stop video stream
+    const endCallEl = document.querySelector("#endCall"); // <<==== End call button
+    endCallEl.addEventListener("click", () => {
+        console.log("Button to end stream has been clicked");
+
+        // Stop all tracks of the local stream
+        const localStream = localVideo.srcObject;
+        if (localStream) {
+            localStream.getTracks().forEach(track => track.stop());
+            localVideo.srcObject = null; // Clear the local video element
+        }
+
+        // Close the peer connection
+        if (peerConnection) {
+            peerConnection.close();
+            peerConnection = null;
+        }
+
+        // Optionally remove the remote video element as well
+        // if (remoteVideo.srcObject) {
+        //     remoteVideo.srcObject.getTracks().forEach(track => track.stop());
+        //     remoteVideo.srcObject = null; // Clear the remote video element
+        // }
+
+        // socket.emit('hangup', roomName); // Inform the other peer about the hangup
+    });
+
+    const roomName = "<%= roomName %>";
+    let userId;
+    let idArray = [];
+
+    function emitMsg() {
+        const msg = document.querySelector(".msgInput");
+        console.log(msg.value);
+        socket.emit("msg", socket.id, roomName, msg.value);
+        msg.value = "";
+    }
+
+    if (roomName) {
+        socket.emit('joinRoom', roomName);
+    }
+
+    socket.on('msg', (id, msg) => {
+        const para = document.createElement("p");
+        para.innerHTML = `<span>${id}: </span><span>${msg}</span>`;
+        containerEl.append(para);
+    });
+
+    //On new user
+    socket.on("connect", () => {
+        console.log("socket id: "+socket.id);
+        socket.emit("receiveidArray", socket.id , roomName);
+    });
+
+    // Received the idArray from back
+    socket.on("receiveidArray", array => {
+        idArray = array;
+        console.log(idArray);
+    });
+
+    
+    </script>
+</body>
+</html>
