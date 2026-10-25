@@ -183,7 +183,7 @@
 
     socket.on('msg', (id, msg) => {
         const para = document.createElement("p");
-        para.innerHTML = `<span>${id}: </span><span>${msg}</span>`;
+        para.textContent = `${id}: ${msg}`;
         containerEl.append(para);
     });
 
